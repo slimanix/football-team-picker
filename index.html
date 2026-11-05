@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SquadPick — 7-Player Football Team Balancer</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Teko:wght@600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo-icon">⚽</div>
+        <div>
+          <h1>SquadPick <span>7-Player Edition</span></h1>
+          <p class="tagline">No more pre-game arguments. Perfectly balanced football teams in seconds.</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="soundToggleBtn" class="pill-btn" title="Toggle audio effects">
+          <span class="icon">🔊</span> <span class="label">Sound ON</span>
+        </button>
+        <button id="resetSquadBtn" class="pill-btn danger-hover" title="Reset to default 7 players">
+          <span class="icon">🔄</span> <span class="label">Reset Roster</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <main class="main-layout">
+      <!-- Left Column: Roster & Mode Configuration -->
+      <section class="panel roster-panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span class="badge-count" id="playerCountBadge">7</span>
+            <h2>Match Roster</h2>
+          </div>
+          <button id="addPlayerBtn" class="btn btn-secondary btn-sm">
+            <span>+</span> Add Player
+          </button>
+        </div>
+
+        <!-- 7-Player Mode Selector -->
+        <div class="mode-selector-card">
+          <label class="section-label">Odd Player Solution (7 Players)</label>
+          <div class="mode-grid">
+            <label class="mode-option active">
+              <input type="radio" name="gameMode" value="joker" checked>
+              <div class="mode-content">
+                <span class="mode-icon">🟡</span>
+                <span class="mode-name">3 vs 3 + Joker</span>
+                <span class="mode-desc">7th player is neutral; attacks with whoever has the ball</span>
+              </div>
+            </label>
+
+            <label class="mode-option">
+              <input type="radio" name="gameMode" value="handicap">
+              <div class="mode-content">
+                <span class="mode-icon">⚖️</span>
+                <span class="mode-name">3 vs 4 Handicap</span>
+                <span class="mode-desc">Top 3 stars balanced against 4 players</span>
+              </div>
+            </label>
+
+            <label class="mode-option">
+              <input type="radio" name="gameMode" value="sub">
+              <div class="mode-content">
+                <span class="mode-icon">⏱️</span>
+                <span class="mode-name">3 vs 3 + Sub / GK</span>
+                <span class="mode-desc">7th rotates every 5 mins with match whistle</span>
+              </div>
+            </label>
+
+            <label class="mode-option">
+              <input type="radio" name="gameMode" value="free">
+              <div class="mode-content">
+                <span class="mode-icon">👥</span>
+                <span class="mode-name">Even / Free Split</span>
+                <span class="mode-desc">Split squad evenly (or closest) without Joker</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Players List -->
+        <div class="players-list" id="playersList">
+          <!-- Populated by JavaScript -->
+        </div>
+
+        <!-- Generation Buttons -->
+        <div class="action-buttons">
+          <button id="generateBalancedBtn" class="btn btn-primary btn-lg">
+            <span class="btn-icon">⚖️</span>
+            <div>
+              <span class="btn-title">Fair Balance Teams</span>
+              <span class="btn-subtitle">Minimizes skill & position gap</span>
+            </div>
+          </button>
+
+          <div class="sub-actions">
+            <button id="generateRandomBtn" class="btn btn-secondary">
+              <span>🎲</span> Pure Random
+            </button>
+            <button id="coinTossBtn" class="btn btn-secondary">
+              <span>🪙</span> Coin Toss
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Pitch & Lineups Display -->
+      <section class="panel pitch-panel">
+        <div class="pitch-header">
+          <div class="match-meta">
+            <h2>Match Lineups</h2>
+            <div id="balanceScore" class="balance-pill">
+              <span class="dot"></span>
+              <span id="balanceScoreText">Teams Ready</span>
+            </div>
+          </div>
+
+          <div class="pitch-toolbar">
+            <button id="copyWhatsAppBtn" class="btn btn-whatsapp btn-sm">
+              <span class="icon">📲</span> Share to WhatsApp
+            </button>
+          </div>
+        </div>
+
+        <!-- Tactical Board / 2D Pitch -->
+        <div class="pitch-container" id="pitchContainer">
+          <div class="pitch-field">
+            <div class="pitch-markings">
+              <div class="penalty-box left"></div>
+              <div class="goal-area left"></div>
+              <div class="center-line"></div>
+              <div class="center-circle"></div>
+              <div class="center-spot"></div>
+              <div class="penalty-box right"></div>
+              <div class="goal-area right"></div>
+            </div>
+
+            <!-- Pitch Players Display -->
+            <div class="pitch-tactics">
+              <!-- Team A Half -->
+              <div class="pitch-half team-blue-half" id="pitchTeamA">
+                <div class="team-banner blue-banner">
+                  <span class="team-dot"></span> Team Blue
+                </div>
+                <div class="players-cluster" id="pitchTeamAPlayers">
+                  <!-- Injected by JS -->
+                </div>
+              </div>
+
+              <!-- Center Zone (Joker / Sub) -->
+              <div class="pitch-center-zone" id="pitchCenterZone">
+                <div class="neutral-banner" id="neutralBanner">
+                  <span class="neutral-icon">⭐</span>
+                  <span id="neutralRoleLabel">NEUTRAL JOKER</span>
+                </div>
+                <div class="joker-cluster" id="pitchJokerSlot">
+                  <!-- Injected by JS -->
+                </div>
+              </div>
+
+              <!-- Team B Half -->
+              <div class="pitch-half team-red-half" id="pitchTeamB">
+                <div class="team-banner red-banner">
+                  <span class="team-dot"></span> Team Red
+                </div>
+                <div class="players-cluster" id="pitchTeamBPlayers">
+                  <!-- Injected by JS -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detailed Team Cards Below Pitch -->
+        <div class="team-cards-grid">
+          <!-- Team A Card -->
+          <div class="team-card blue-card">
+            <div class="card-head">
+              <div class="card-title-group">
+                <span class="badge blue-badge">TEAM BLUE</span>
+                <span class="count-tag" id="teamACount">3 players</span>
+              </div>
+              <div class="rating-badge" id="teamARating">
+                <span class="star-icon">★</span> <span id="teamARatingVal">0.0</span>
+              </div>
+            </div>
+            <div class="card-roster" id="teamARosterList">
+              <!-- Injected by JS -->
+            </div>
+          </div>
+
+          <!-- Neutral / Sub Info Card (Shown when Joker/Sub mode active) -->
+          <div class="team-card neutral-card" id="neutralCard">
+            <div class="card-head">
+              <div class="card-title-group">
+                <span class="badge yellow-badge" id="neutralCardBadge">JOKER / ROTATOR</span>
+                <span class="count-tag" id="neutralCountTag">1 player</span>
+              </div>
+              <div class="rating-badge yellow-rating" id="neutralRating">
+                <span class="star-icon">★</span> <span id="neutralRatingVal">0.0</span>
+              </div>
+            </div>
+            <div class="card-roster" id="neutralRosterList">
+              <!-- Injected by JS -->
+            </div>
+            <p class="neutral-instructions" id="neutralInstructions">
+              Plays for whichever team is in possession. High tempo pivot!
+            </p>
+          </div>
+
+          <!-- Team B Card -->
+          <div class="team-card red-card">
+            <div class="card-head">
+              <div class="card-title-group">
+                <span class="badge red-badge">TEAM RED</span>
+                <span class="count-tag" id="teamBCount">3 players</span>
+              </div>
+              <div class="rating-badge" id="teamBRating">
+                <span class="star-icon">★</span> <span id="teamBRatingVal">0.0</span>
+              </div>
+            </div>
+            <div class="card-roster" id="teamBRosterList">
+              <!-- Injected by JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Match & Rotation Timer -->
+        <div class="match-timer-card">
+          <div class="timer-info">
+            <div class="timer-icon">⏱️</div>
+            <div>
+              <h3>Match & Sub Rotation Timer</h3>
+              <p id="timerDesc">Alerts you with referee whistle when it's time to rotate the 7th player!</p>
+            </div>
+          </div>
+          <div class="timer-controls">
+            <div class="timer-display" id="timerDisplay">05:00</div>
+            <div class="timer-buttons">
+              <button id="startTimerBtn" class="btn btn-sm btn-primary">Start</button>
+              <button id="pauseTimerBtn" class="btn btn-sm btn-secondary" disabled>Pause</button>
+              <button id="resetTimerBtn" class="btn btn-sm btn-secondary">Reset</button>
+              <button id="whistleBtn" class="btn btn-sm btn-whistle" title="Blow referee whistle">吹 Whistle</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Coin Toss Modal -->
+    <div class="modal-overlay" id="coinModal">
+      <div class="modal-card">
+        <button class="modal-close" id="closeCoinModal">&times;</button>
+        <h3>Captains' Coin Toss</h3>
+        <p>Pick heads or tails to decide who chooses first or gets ball kickoff.</p>
+        <div class="coin-stage">
+          <div class="coin" id="coinElement">
+            <div class="coin-face front">⚽<br>HEADS</div>
+            <div class="coin-face back">🏆<br>TAILS</div>
+          </div>
+        </div>
+        <div class="coin-result" id="coinResult">Click Flip to Toss!</div>
+        <button id="flipCoinBtn" class="btn btn-primary btn-lg" style="width: 100%;">🪙 Flip Coin</button>
+      </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast">Lineup copied to clipboard!</div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
