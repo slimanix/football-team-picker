@@ -1,4 +1,4 @@
-// SquadPick - 7-Player Football Team Balancer
+// SquadPick - 7 vs 7 Football Team Balancer
 // State & LocalStorage Management
 
 const POSITIONS = ['GK', 'DEF', 'MID', 'ATT'];
@@ -9,28 +9,36 @@ const POS_ICONS = {
   'ATT': '🎯 ATT'
 };
 
-const DEFAULT_PLAYERS = [
-  { id: '1', name: 'Alex', position: 'MID', rating: 4 },
-  { id: '2', name: 'Leo', position: 'ATT', rating: 5 },
-  { id: '3', name: 'Marcus', position: 'DEF', rating: 3 },
-  { id: '4', name: 'Karim', position: 'ATT', rating: 4 },
-  { id: '5', name: 'David', position: 'DEF', rating: 4 },
-  { id: '6', name: 'Sam', position: 'MID', rating: 3 },
-  { id: '7', name: 'Mateo', position: 'GK', rating: 4 }
+// 14 Default players for a 7 vs 7 match (2 GK, 4 DEF, 5 MID, 3 ATT)
+const DEFAULT_14_PLAYERS = [
+  { id: '1', name: 'Mateo', position: 'GK', rating: 4 },
+  { id: '2', name: 'Hugo', position: 'GK', rating: 4 },
+  { id: '3', name: 'Marcus', position: 'DEF', rating: 4 },
+  { id: '4', name: 'David', position: 'DEF', rating: 4 },
+  { id: '5', name: 'Sami', position: 'DEF', rating: 3 },
+  { id: '6', name: 'Lucas', position: 'DEF', rating: 3 },
+  { id: '7', name: 'Alex', position: 'MID', rating: 5 },
+  { id: '8', name: 'Karim', position: 'MID', rating: 4 },
+  { id: '9', name: 'Yassine', position: 'MID', rating: 4 },
+  { id: '10', name: 'Nico', position: 'MID', rating: 3 },
+  { id: '11', name: 'Sam', position: 'MID', rating: 3 },
+  { id: '12', name: 'Leo', position: 'ATT', rating: 5 },
+  { id: '13', name: 'Enzo', position: 'ATT', rating: 4 },
+  { id: '14', name: 'Tariq', position: 'ATT', rating: 4 }
 ];
 
 let state = {
   players: [],
-  gameMode: 'joker', // 'joker' | 'handicap' | 'sub' | 'free'
+  formation: '2-3-1', // '2-3-1' | '3-2-1' | '2-2-2'
   soundEnabled: true,
   currentTeams: {
-    teamA: [],
-    teamB: [],
-    neutral: null
+    teamA: [], // 7 players
+    teamB: [], // 7 players
+    bench: []  // any substitutes beyond 14
   },
   timer: {
-    duration: 300, // 5 minutes in seconds
-    remaining: 300,
+    duration: 1200, // 20 minutes in seconds (7v7 half)
+    remaining: 1200,
     intervalId: null,
     isRunning: false
   }
@@ -56,14 +64,14 @@ function playSound(type) {
       osc1.type = 'triangle';
       osc2.type = 'sine';
 
-      // 2800 Hz and 3100 Hz dual tone
+      // 2800 Hz and 3120 Hz dual tone
       osc1.frequency.setValueAtTime(2780, now);
       osc2.frequency.setValueAtTime(3120, now);
 
       // Tremolo / modulation for authentic whistle flutter
       const lfo = audioCtx.createOscillator();
       const lfoGain = audioCtx.createGain();
-      lfo.frequency.setValueAtTime(28, now); // 28 Hz flutter
+      lfo.frequency.setValueAtTime(28, now);
       lfoGain.gain.setValueAtTime(120, now);
       lfo.connect(osc1.frequency);
       lfo.connect(osc2.frequency);
@@ -84,7 +92,6 @@ function playSound(type) {
       osc2.stop(now + 0.65);
       lfo.stop(now + 0.65);
     } else if (type === 'toss') {
-      // High pitch metallic chime for coin toss
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = 'sine';
@@ -110,7 +117,6 @@ function playSound(type) {
       osc.start(now);
       osc.stop(now + 0.08);
     } else if (type === 'success') {
-      // Fanfare cheer chords
       [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
@@ -138,32 +144,33 @@ function init() {
 }
 
 function loadSavedState() {
-  const saved = localStorage.getItem('squadpick_players_v1');
+  const saved = localStorage.getItem('squadpick_7v7_players_v1');
   if (saved) {
     try {
       state.players = JSON.parse(saved);
     } catch (e) {
-      state.players = JSON.parse(JSON.stringify(DEFAULT_PLAYERS));
+      state.players = JSON.parse(JSON.stringify(DEFAULT_14_PLAYERS));
     }
   } else {
-    state.players = JSON.parse(JSON.stringify(DEFAULT_PLAYERS));
+    state.players = JSON.parse(JSON.stringify(DEFAULT_14_PLAYERS));
   }
 }
 
 function saveState() {
-  localStorage.setItem('squadpick_players_v1', JSON.stringify(state.players));
+  localStorage.setItem('squadpick_7v7_players_v1', JSON.stringify(state.players));
 }
 
 // UI Bindings
 function bindEvents() {
-  // Mode selection
-  document.querySelectorAll('input[name="gameMode"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      state.gameMode = e.target.value;
+  // Formation selection
+  document.querySelectorAll('.form-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.form-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.formation = btn.dataset.form;
+      document.getElementById('currentFormationBadge').textContent = state.formation;
       playSound('click');
-      document.querySelectorAll('.mode-option').forEach(el => el.classList.remove('active'));
-      e.target.closest('.mode-option').classList.add('active');
-      generateTeams(true);
+      updateLineupDisplay();
     });
   });
 
@@ -178,16 +185,16 @@ function bindEvents() {
 
   // Reset squad
   document.getElementById('resetSquadBtn').addEventListener('click', () => {
-    if (confirm('Reset roster to default 7 players?')) {
-      state.players = JSON.parse(JSON.stringify(DEFAULT_PLAYERS));
+    if (confirm('Reset roster to default 14 players (7 vs 7)?')) {
+      state.players = JSON.parse(JSON.stringify(DEFAULT_14_PLAYERS));
       saveState();
       renderRoster();
       generateTeams(true);
-      showToast('Roster reset to default 7 players');
+      showToast('Roster reset to 14 players for 7v7');
     }
   });
 
-  // Add player
+  // Add player / sub
   document.getElementById('addPlayerBtn').addEventListener('click', () => {
     const newId = String(Date.now());
     const count = state.players.length + 1;
@@ -240,6 +247,31 @@ function renderRoster() {
   const container = document.getElementById('playersList');
   document.getElementById('playerCountBadge').textContent = state.players.length;
 
+  // Check GK count
+  const gkCount = state.players.filter(p => p.position === 'GK').length;
+  const gkAlert = document.getElementById('gkAlert');
+  const gkAlertText = document.getElementById('gkAlertText');
+
+  if (gkCount === 2) {
+    gkAlert.style.display = 'flex';
+    gkAlert.style.background = 'rgba(16, 185, 129, 0.12)';
+    gkAlert.style.borderColor = 'rgba(16, 185, 129, 0.35)';
+    gkAlertText.style.color = '#34d399';
+    gkAlertText.textContent = '2 Goalkeepers detected (1 per team guaranteed!)';
+  } else if (gkCount < 2) {
+    gkAlert.style.display = 'flex';
+    gkAlert.style.background = 'rgba(217, 119, 6, 0.12)';
+    gkAlert.style.borderColor = 'rgba(217, 119, 6, 0.35)';
+    gkAlertText.style.color = '#fbbf24';
+    gkAlertText.textContent = `Only ${gkCount} GK detected. Set 2 players to GK for authentic 7v7 balance!`;
+  } else {
+    gkAlert.style.display = 'flex';
+    gkAlert.style.background = 'rgba(59, 130, 246, 0.12)';
+    gkAlert.style.borderColor = 'rgba(59, 130, 246, 0.35)';
+    gkAlertText.style.color = '#93c5fd';
+    gkAlertText.textContent = `${gkCount} Goalkeepers detected (will rotate or share).`;
+  }
+
   container.innerHTML = state.players.map((p, idx) => `
     <div class="player-row" data-id="${p.id}">
       <span class="player-num">${idx + 1}</span>
@@ -261,7 +293,7 @@ function renderRoster() {
     </div>
   `).join('');
 
-  // Attach event listeners to roster items
+  // Attach event listeners
   container.querySelectorAll('.player-row').forEach(row => {
     const id = row.dataset.id;
     const player = state.players.find(p => p.id === id);
@@ -312,7 +344,7 @@ function renderRoster() {
   });
 }
 
-// Team Generation Algorithm
+// 7 vs 7 Team Generation Algorithm
 function generateTeams(balanced = true) {
   const pool = [...state.players];
   const count = pool.length;
@@ -321,144 +353,123 @@ function generateTeams(balanced = true) {
 
   let teamA = [];
   let teamB = [];
-  let neutral = null;
+  let bench = [];
 
-  if (state.gameMode === 'joker' && count >= 3) {
-    // Select 1 player to be Joker (preferably Midfielder or median rating player)
-    // Then balance the remaining players into two equal halves (e.g., 3 vs 3)
-    let jokerIndex = 0;
-    if (balanced) {
-      // Find candidate midfielders or median rated player
-      const mids = pool.filter(p => p.position === 'MID');
-      if (mids.length > 0) {
-        jokerIndex = pool.indexOf(mids[Math.floor(Math.random() * mids.length)]);
-      } else {
-        // Median rating player
-        const sorted = [...pool].sort((a, b) => a.rating - b.rating);
-        const medianPlayer = sorted[Math.floor(sorted.length / 2)];
-        jokerIndex = pool.indexOf(medianPlayer);
-      }
-    } else {
-      jokerIndex = Math.floor(Math.random() * pool.length);
-    }
-
-    neutral = pool.splice(jokerIndex, 1)[0];
-    const split = splitPool(pool, Math.floor(pool.length / 2), balanced);
-    teamA = split.teamA;
-    teamB = split.teamB;
-
-  } else if (state.gameMode === 'sub' && count >= 3) {
-    // 3 vs 3 + 1 Rotating Sub
-    const subIndex = Math.floor(Math.random() * pool.length);
-    neutral = pool.splice(subIndex, 1)[0];
-    const split = splitPool(pool, Math.floor(pool.length / 2), balanced);
-    teamA = split.teamA;
-    teamB = split.teamB;
-
-  } else if (state.gameMode === 'handicap' && count === 7) {
-    // Specifically for 7 players: 3 vs 4
-    // 3 players on Team A, 4 players on Team B
-    // In balanced mode, Team A should have higher average rating so that Total Skill A ~ Total Skill B!
-    if (balanced) {
-      const best = findBestHandicapSplit(pool, 3, 4);
-      teamA = best.teamA;
-      teamB = best.teamB;
-    } else {
-      shuffle(pool);
-      teamA = pool.slice(0, 3);
-      teamB = pool.slice(3);
-    }
-    neutral = null;
-
+  if (!balanced) {
+    shuffle(pool);
+    teamA = pool.slice(0, 7);
+    teamB = pool.slice(7, 14);
+    bench = pool.slice(14);
   } else {
-    // Free / Even Split
-    const targetSize = Math.ceil(pool.length / 2);
-    const split = splitPool(pool, targetSize, balanced);
-    teamA = split.teamA;
-    teamB = split.teamB;
-    neutral = null;
+    // 7v7 Dedicated Balancing Engine:
+    // 1. Separate Goalkeepers
+    const gks = pool.filter(p => p.position === 'GK');
+    const outfield = pool.filter(p => p.position !== 'GK');
+
+    // Balance Goalkeepers if >= 2
+    if (gks.length >= 2) {
+      // Sort GKs by rating, give one to each team
+      gks.sort((a, b) => b.rating - a.rating);
+      teamA.push(gks[0]);
+      teamB.push(gks[1]);
+      // Extra GKs (if any) go to outfield pool
+      for (let i = 2; i < gks.length; i++) {
+        outfield.push(gks[i]);
+      }
+    } else if (gks.length === 1) {
+      teamA.push(gks[0]);
+    }
+
+    // Target outfield count per team: 7 - teamGKCount
+    const targetA = 7 - teamA.length;
+    const targetB = 7 - teamB.length;
+
+    // Use combinatorial search or greedy alternating draft to balance outfield
+    // Sort outfield by rating descending
+    outfield.sort((a, b) => {
+      if (b.rating !== a.rating) return b.rating - a.rating;
+      return Math.random() - 0.5;
+    });
+
+    // Snake draft / balance by position and rating
+    const defs = outfield.filter(p => p.position === 'DEF');
+    const mids = outfield.filter(p => p.position === 'MID');
+    const atts = outfield.filter(p => p.position === 'ATT');
+
+    // Distribute DEF
+    distributeGroup(defs, teamA, teamB, targetA, targetB);
+    // Distribute MID
+    distributeGroup(mids, teamA, teamB, 7, 7);
+    // Distribute ATT
+    distributeGroup(atts, teamA, teamB, 7, 7);
+
+    // If any team still needs players up to 7
+    const remaining = outfield.filter(p => !teamA.includes(p) && !teamB.includes(p));
+    remaining.forEach(p => {
+      if (teamA.length < 7 && teamB.length < 7) {
+        const sumA = teamA.reduce((s, x) => s + x.rating, 0);
+        const sumB = teamB.reduce((s, x) => s + x.rating, 0);
+        if (sumA <= sumB) teamA.push(p);
+        else teamB.push(p);
+      } else if (teamA.length < 7) {
+        teamA.push(p);
+      } else if (teamB.length < 7) {
+        teamB.push(p);
+      } else {
+        bench.push(p);
+      }
+    });
+
+    // Final skill fine-tuning swap
+    fineTuneOutfieldBalance(teamA, teamB);
   }
 
-  state.currentTeams = { teamA, teamB, neutral };
+  state.currentTeams = { teamA, teamB, bench };
   updateLineupDisplay();
 }
 
-// Split algorithm with fairness minimization
-function splitPool(pool, targetSizeA, balanced) {
-  if (!balanced) {
-    shuffle(pool);
-    return {
-      teamA: pool.slice(0, targetSizeA),
-      teamB: pool.slice(targetSizeA)
-    };
+function distributeGroup(group, teamA, teamB, maxA, maxB) {
+  group.forEach(p => {
+    if (teamA.includes(p) || teamB.includes(p)) return;
+
+    const sumA = teamA.reduce((s, x) => s + x.rating, 0);
+    const sumB = teamB.reduce((s, x) => s + x.rating, 0);
+
+    if (teamA.length < maxA && teamB.length < maxB) {
+      if (sumA <= sumB) teamA.push(p);
+      else teamB.push(p);
+    } else if (teamA.length < maxA) {
+      teamA.push(p);
+    } else if (teamB.length < maxB) {
+      teamB.push(p);
+    }
+  });
+}
+
+function fineTuneOutfieldBalance(teamA, teamB) {
+  // Only swap outfield players between A and B if it improves delta
+  let currentDelta = Math.abs(
+    teamA.reduce((s, p) => s + p.rating, 0) - teamB.reduce((s, p) => s + p.rating, 0)
+  );
+
+  for (let i = 0; i < teamA.length; i++) {
+    for (let j = 0; j < teamB.length; j++) {
+      if (teamA[i].position === 'GK' || teamB[j].position === 'GK') continue;
+      // Test swap
+      const pA = teamA[i];
+      const pB = teamB[j];
+
+      const newSumA = teamA.reduce((s, p) => s + p.rating, 0) - pA.rating + pB.rating;
+      const newSumB = teamB.reduce((s, p) => s + p.rating, 0) - pB.rating + pA.rating;
+      const newDelta = Math.abs(newSumA - newSumB);
+
+      if (newDelta < currentDelta) {
+        teamA[i] = pB;
+        teamB[j] = pA;
+        currentDelta = newDelta;
+      }
+    }
   }
-
-  // Find partition that minimizes absolute difference in rating
-  const combinations = getCombinations(pool, targetSizeA);
-  let bestDiff = Infinity;
-  let bestChoice = combinations[0];
-
-  combinations.forEach(combo => {
-    const aIds = new Set(combo.map(p => p.id));
-    const b = pool.filter(p => !aIds.has(p.id));
-
-    const avgA = combo.reduce((s, p) => s + p.rating, 0) / combo.length;
-    const avgB = b.reduce((s, p) => s + p.rating, 0) / b.length;
-    const ratingDiff = Math.abs(avgA - avgB);
-
-    // Positional balance penalty
-    const aDef = combo.filter(p => p.position === 'DEF' || p.position === 'GK').length;
-    const bDef = b.filter(p => p.position === 'DEF' || p.position === 'GK').length;
-    const posDiff = Math.abs(aDef - bDef) * 0.25;
-
-    const totalScore = ratingDiff + posDiff;
-    if (totalScore < bestDiff) {
-      bestDiff = totalScore;
-      bestChoice = combo;
-    }
-  });
-
-  const aIds = new Set(bestChoice.map(p => p.id));
-  return {
-    teamA: bestChoice,
-    teamB: pool.filter(p => !aIds.has(p.id))
-  };
-}
-
-// Optimal handicap solver (Sum rating matching)
-function findBestHandicapSplit(pool, sizeA, sizeB) {
-  const combos = getCombinations(pool, sizeA);
-  let bestDiff = Infinity;
-  let bestCombo = combos[0];
-
-  combos.forEach(combo => {
-    const aIds = new Set(combo.map(p => p.id));
-    const b = pool.filter(p => !aIds.has(p.id));
-    const sumA = combo.reduce((s, p) => s + p.rating, 0);
-    const sumB = b.reduce((s, p) => s + p.rating, 0);
-    const diff = Math.abs(sumA - sumB);
-
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      bestCombo = combo;
-    }
-  });
-
-  const aIds = new Set(bestCombo.map(p => p.id));
-  return {
-    teamA: bestCombo,
-    teamB: pool.filter(p => !aIds.has(p.id))
-  };
-}
-
-function getCombinations(arr, k) {
-  if (k === 0) return [[]];
-  if (arr.length === 0) return [];
-  const head = arr[0];
-  const tail = arr.slice(1);
-  const withHead = getCombinations(tail, k - 1).map(combo => [head, ...combo]);
-  const withoutHead = getCombinations(tail, k);
-  return [...withHead, ...withoutHead];
 }
 
 function shuffle(array) {
@@ -468,11 +479,10 @@ function shuffle(array) {
   }
 }
 
-// Update UI Presentation
+// Update 7 vs 7 UI Presentation
 function updateLineupDisplay() {
-  const { teamA, teamB, neutral } = state.currentTeams;
+  const { teamA, teamB, bench } = state.currentTeams;
 
-  // Averages & totals
   const avgA = teamA.length ? (teamA.reduce((s, p) => s + p.rating, 0) / teamA.length).toFixed(1) : '0.0';
   const avgB = teamB.length ? (teamB.reduce((s, p) => s + p.rating, 0) / teamB.length).toFixed(1) : '0.0';
   const sumA = teamA.reduce((s, p) => s + p.rating, 0);
@@ -483,58 +493,90 @@ function updateLineupDisplay() {
   const balanceText = document.getElementById('balanceScoreText');
   const ratingDelta = Math.abs(avgA - avgB);
 
-  if (state.gameMode === 'handicap') {
-    const sumDelta = Math.abs(sumA - sumB);
-    balanceText.textContent = `Balanced: 3v4 Total (${sumA} pts vs ${sumB} pts)`;
-    balancePill.style.background = sumDelta <= 2 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)';
-  } else {
-    balanceText.textContent = `Fair Match (Delta: ${ratingDelta.toFixed(1)}★)`;
-    balancePill.style.background = ratingDelta <= 0.5 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)';
-  }
+  balanceText.textContent = `7v7 Fair Match (Delta: ${ratingDelta.toFixed(1)}★)`;
+  balancePill.style.background = ratingDelta <= 0.3 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)';
 
-  // Cards display
+  // Card headers
   document.getElementById('teamACount').textContent = `${teamA.length} players`;
   document.getElementById('teamBCount').textContent = `${teamB.length} players`;
   document.getElementById('teamARatingVal').textContent = `${avgA} avg (${sumA}★)`;
   document.getElementById('teamBRatingVal').textContent = `${avgB} avg (${sumB}★)`;
 
-  // Neutral card handling
-  const neutralCard = document.getElementById('neutralCard');
-  const pitchCenterZone = document.getElementById('pitchCenterZone');
-  const teamCardsGrid = document.querySelector('.team-cards-grid');
+  // Render tactical pitch lines
+  renderTacticalPitch(teamA, teamB);
 
-  if (neutral) {
-    neutralCard.style.display = 'block';
-    pitchCenterZone.style.display = 'flex';
-    teamCardsGrid.classList.add('has-neutral');
-
-    const isSub = state.gameMode === 'sub';
-    document.getElementById('neutralRoleLabel').textContent = isSub ? 'ROTATING SUB / GK' : 'NEUTRAL JOKER';
-    document.getElementById('neutralCardBadge').textContent = isSub ? 'ROTATING SUB' : 'NEUTRAL JOKER';
-    document.getElementById('neutralRatingVal').textContent = `${neutral.rating}.0 ★`;
-    document.getElementById('neutralInstructions').textContent = isSub
-      ? 'Rotates every 5 mins! Shared keeper or super sub for both sides.'
-      : 'Plays with whichever team is on the attack. Creates quick passing options!';
-
-    document.getElementById('neutralRosterList').innerHTML = renderCardPlayer(neutral, 'yellow');
-    document.getElementById('pitchJokerSlot').innerHTML = renderPitchToken(neutral, 'yellow', '★');
-  } else {
-    neutralCard.style.display = 'none';
-    pitchCenterZone.style.display = 'none';
-    teamCardsGrid.classList.remove('has-neutral');
-    document.getElementById('pitchJokerSlot').innerHTML = '';
-  }
-
-  // Pitch tokens
-  document.getElementById('pitchTeamAPlayers').innerHTML = teamA.map((p, i) => renderPitchToken(p, 'blue', i + 1)).join('');
-  document.getElementById('pitchTeamBPlayers').innerHTML = teamB.map((p, i) => renderPitchToken(p, 'red', i + 1)).join('');
-
-  // Roster lists in cards
+  // Render team cards
   document.getElementById('teamARosterList').innerHTML = teamA.map(p => renderCardPlayer(p, 'blue')).join('');
   document.getElementById('teamBRosterList').innerHTML = teamB.map(p => renderCardPlayer(p, 'red')).join('');
 
-  // Attach token swap events
+  // Bench Substitutes (if > 14 players)
+  const benchContainer = document.getElementById('benchContainer');
+  if (bench && bench.length > 0) {
+    benchContainer.style.display = 'block';
+    document.getElementById('benchCount').textContent = `${bench.length} subs`;
+    document.getElementById('benchPlayersList').innerHTML = bench.map(p => `
+      <div class="roster-item" style="background: #1e293b; border: 1px solid #334155;">
+        <span class="pos-badge pos-${p.position}">${p.position}</span>
+        <span class="roster-name" style="margin: 0 8px;">${escapeHtml(p.name)}</span>
+        <span class="star-rating">${'★'.repeat(p.rating)}</span>
+      </div>
+    `).join('');
+  } else {
+    benchContainer.style.display = 'none';
+  }
+
   attachTokenEvents();
+}
+
+// Tactical 7v7 Pitch Layout
+function renderTacticalPitch(teamA, teamB) {
+  // Sort team players by tactical role: GK -> DEF -> MID -> ATT
+  const sortForPitch = (players) => {
+    const roleOrder = { 'GK': 0, 'DEF': 1, 'MID': 2, 'ATT': 3 };
+    return [...players].sort((a, b) => roleOrder[a.position] - roleOrder[b.position]);
+  };
+
+  const sortedA = sortForPitch(teamA);
+  const sortedB = sortForPitch(teamB);
+
+  // Split into tactical lines according to selected formation
+  // Formations: '2-3-1', '3-2-1', '2-2-2'
+  let formLines = [2, 3, 1]; // DEF, MID, ATT counts
+  if (state.formation === '3-2-1') formLines = [3, 2, 1];
+  if (state.formation === '2-2-2') formLines = [2, 2, 2];
+
+  // Team A (Blue Half): Left to Center -> [GK] -> [DEF] -> [MID] -> [ATT]
+  const teamAPitch = document.getElementById('pitchTeamAPlayers');
+  const gkA = sortedA.filter(p => p.position === 'GK');
+  const outfieldA = sortedA.filter(p => p.position !== 'GK');
+
+  // Assign outfield players to formation lines
+  const defsA = outfieldA.slice(0, formLines[0]);
+  const midsA = outfieldA.slice(formLines[0], formLines[0] + formLines[1]);
+  const attsA = outfieldA.slice(formLines[0] + formLines[1]);
+
+  teamAPitch.innerHTML = `
+    <div class="tactical-line gk-line">${gkA.map(p => renderPitchToken(p, 'gk-blue', 'GK')).join('')}</div>
+    <div class="tactical-line def-line">${defsA.map((p, i) => renderPitchToken(p, 'blue', i + 2)).join('')}</div>
+    <div class="tactical-line mid-line">${midsA.map((p, i) => renderPitchToken(p, 'blue', i + 4)).join('')}</div>
+    <div class="tactical-line att-line">${attsA.map((p, i) => renderPitchToken(p, 'blue', i + 7)).join('')}</div>
+  `;
+
+  // Team B (Red Half): Center to Right -> [ATT] -> [MID] -> [DEF] -> [GK]
+  const teamBPitch = document.getElementById('pitchTeamBPlayers');
+  const gkB = sortedB.filter(p => p.position === 'GK');
+  const outfieldB = sortedB.filter(p => p.position !== 'GK');
+
+  const defsB = outfieldB.slice(0, formLines[0]);
+  const midsB = outfieldB.slice(formLines[0], formLines[0] + formLines[1]);
+  const attsB = outfieldB.slice(formLines[0] + formLines[1]);
+
+  teamBPitch.innerHTML = `
+    <div class="tactical-line att-line">${attsB.map((p, i) => renderPitchToken(p, 'red', i + 7)).join('')}</div>
+    <div class="tactical-line mid-line">${midsB.map((p, i) => renderPitchToken(p, 'red', i + 4)).join('')}</div>
+    <div class="tactical-line def-line">${defsB.map((p, i) => renderPitchToken(p, 'red', i + 2)).join('')}</div>
+    <div class="tactical-line gk-line">${gkB.map(p => renderPitchToken(p, 'gk-red', 'GK')).join('')}</div>
+  `;
 }
 
 function renderPitchToken(player, color, num) {
@@ -574,7 +616,7 @@ function attachTokenEvents() {
 
       if (!selectedTokenId) {
         selectedTokenId = clickedId;
-        token.style.transform = 'scale(1.2) translateY(-8px)';
+        token.style.transform = 'scale(1.25) translateY(-8px)';
         token.querySelector('.jersey-badge').style.borderColor = '#fbbf24';
         showToast(`Select another player to swap with ${token.querySelector('.token-name').textContent}`);
         playSound('click');
@@ -582,7 +624,6 @@ function attachTokenEvents() {
         selectedTokenId = null;
         updateLineupDisplay();
       } else {
-        // Swap selectedTokenId and clickedId
         swapPlayers(selectedTokenId, clickedId);
         selectedTokenId = null;
         playSound('click');
@@ -593,38 +634,19 @@ function attachTokenEvents() {
 }
 
 function swapPlayers(id1, id2) {
-  const { teamA, teamB, neutral } = state.currentTeams;
+  const { teamA, teamB } = state.currentTeams;
 
-  const findContainer = (id) => {
-    if (teamA.some(p => p.id === id)) return 'teamA';
-    if (teamB.some(p => p.id === id)) return 'teamB';
-    if (neutral && neutral.id === id) return 'neutral';
-    return null;
-  };
+  const loc1 = teamA.some(p => p.id === id1) ? 'teamA' : 'teamB';
+  const loc2 = teamA.some(p => p.id === id2) ? 'teamA' : 'teamB';
 
-  const loc1 = findContainer(id1);
-  const loc2 = findContainer(id2);
-  if (!loc1 || !loc2) return;
-
-  const getPlayer = (loc, id) => {
-    if (loc === 'teamA') return teamA.find(p => p.id === id);
-    if (loc === 'teamB') return teamB.find(p => p.id === id);
-    if (loc === 'neutral') return neutral;
-  };
-
+  const getPlayer = (loc, id) => (loc === 'teamA' ? teamA : teamB).find(p => p.id === id);
   const p1 = getPlayer(loc1, id1);
   const p2 = getPlayer(loc2, id2);
 
   const replacePlayer = (loc, oldId, newP) => {
-    if (loc === 'teamA') {
-      const idx = teamA.findIndex(p => p.id === oldId);
-      teamA[idx] = newP;
-    } else if (loc === 'teamB') {
-      const idx = teamB.findIndex(p => p.id === oldId);
-      teamB[idx] = newP;
-    } else if (loc === 'neutral') {
-      state.currentTeams.neutral = newP;
-    }
+    const arr = loc === 'teamA' ? teamA : teamB;
+    const idx = arr.findIndex(p => p.id === oldId);
+    arr[idx] = newP;
   };
 
   replacePlayer(loc1, id1, p2);
@@ -633,48 +655,59 @@ function swapPlayers(id1, id2) {
   updateLineupDisplay();
 }
 
-// Copy to WhatsApp
+// Copy 7 vs 7 Lineup to WhatsApp
 function copyWhatsAppLineup() {
-  const { teamA, teamB, neutral } = state.currentTeams;
+  const { teamA, teamB, bench } = state.currentTeams;
   const avgA = teamA.length ? (teamA.reduce((s, p) => s + p.rating, 0) / teamA.length).toFixed(1) : '0';
   const avgB = teamB.length ? (teamB.reduce((s, p) => s + p.rating, 0) / teamB.length).toFixed(1) : '0';
 
-  let modeText = '3 vs 3 + Joker';
-  if (state.gameMode === 'handicap') modeText = '3 vs 4 Handicap';
-  if (state.gameMode === 'sub') modeText = '3 vs 3 + Rotating Sub';
-  if (state.gameMode === 'free') modeText = 'Standard Match';
+  let text = `⚽ *7 vs 7 MATCHDAY LINEUP* ⚽\n`;
+  text += `📋 Formation: *${state.formation}* • Balanced Match\n\n`;
 
-  let text = `⚽ *FOOTBALL MATCHDAY SQUAD* ⚽\n`;
-  text += `📋 Mode: *${modeText}*\n\n`;
+  text += `🔵 *TEAM BLUE* (${teamA.length} Players - ${avgA}★ avg):\n`;
+  const groupA = groupByPosition(teamA);
+  text += formatGroupWhatsApp(groupA);
 
-  text += `🔵 *TEAM BLUE* (${avgA}★ avg):\n`;
-  teamA.forEach(p => {
-    text += `  • ${p.name} (${p.position} - ${p.rating}★)\n`;
-  });
+  text += `\n🔴 *TEAM RED* (${teamB.length} Players - ${avgB}★ avg):\n`;
+  const groupB = groupByPosition(teamB);
+  text += formatGroupWhatsApp(groupB);
 
-  text += `\n🔴 *TEAM RED* (${avgB}★ avg):\n`;
-  teamB.forEach(p => {
-    text += `  • ${p.name} (${p.position} - ${p.rating}★)\n`;
-  });
-
-  if (neutral) {
-    const isSub = state.gameMode === 'sub';
-    text += `\n🟡 *${isSub ? 'ROTATING SUB' : 'NEUTRAL JOKER'}*:\n`;
-    text += `  • ${neutral.name} (${neutral.position} - ${neutral.rating}★)\n`;
-    text += `  ℹ️ ${isSub ? 'Rotates every 5 minutes' : 'Plays with team in possession'}\n`;
+  if (bench && bench.length > 0) {
+    text += `\n🔄 *SUBSTITUTES / BENCH* (${bench.length}):\n`;
+    bench.forEach(p => {
+      text += `  • ${p.name} (${p.position} - ${p.rating}★)\n`;
+    });
   }
 
-  text += `\n⚖️ *Teams balanced by SquadPick*\nReady for kickoff! 🔥`;
+  text += `\n⚖️ *Teams balanced by SquadPick 7v7*\nMatch ready for kickoff! 🔥`;
 
   navigator.clipboard.writeText(text).then(() => {
-    showToast('Lineup copied! Ready to paste in WhatsApp 📱');
+    showToast('7v7 Lineup copied! Ready to paste in WhatsApp 📱');
     playSound('success');
   }).catch(() => {
     showToast('Failed to copy. Please allow clipboard permissions.');
   });
 }
 
-// Match & Rotation Timer
+function groupByPosition(players) {
+  return {
+    GK: players.filter(p => p.position === 'GK'),
+    DEF: players.filter(p => p.position === 'DEF'),
+    MID: players.filter(p => p.position === 'MID'),
+    ATT: players.filter(p => p.position === 'ATT')
+  };
+}
+
+function formatGroupWhatsApp(group) {
+  let res = '';
+  if (group.GK.length) res += `  🧤 GK: ${group.GK.map(p => `${p.name} (${p.rating}★)`).join(', ')}\n`;
+  if (group.DEF.length) res += `  🛡️ DEF: ${group.DEF.map(p => `${p.name} (${p.rating}★)`).join(', ')}\n`;
+  if (group.MID.length) res += `  ⚡ MID: ${group.MID.map(p => `${p.name} (${p.rating}★)`).join(', ')}\n`;
+  if (group.ATT.length) res += `  🎯 ATT: ${group.ATT.map(p => `${p.name} (${p.rating}★)`).join(', ')}\n`;
+  return res;
+}
+
+// Match Clock (20 mins half)
 function startTimer() {
   if (state.timer.isRunning) return;
   state.timer.isRunning = true;
@@ -687,13 +720,10 @@ function startTimer() {
       state.timer.remaining--;
       updateTimerDisplay();
     } else {
-      // Time is up!
       pauseTimer();
       playSound('whistle');
-      showToast('⏰ TIME IS UP! Whistle blown!');
-      if (state.gameMode === 'sub') {
-        alert('⏰ TIME TO ROTATE THE SUB! Blow whistle & swap 7th player.');
-      }
+      showToast('⏰ HALF TIME! Referee whistle blown!');
+      alert('⏰ HALF TIME! Switch sides or rotate substitutes.');
     }
   }, 1000);
 }
@@ -727,14 +757,13 @@ function flipCoin() {
   playSound('toss');
   resultText.textContent = 'Flipping...';
 
-  // Random spin degrees
-  const rotations = 5 + Math.floor(Math.random() * 4); // 5-8 full spins
+  const rotations = 5 + Math.floor(Math.random() * 4);
   const targetDeg = (rotations * 360) + (isHeads ? 0 : 180);
 
   coin.style.transform = `rotateY(${targetDeg}deg)`;
 
   setTimeout(() => {
-    const winner = isHeads ? 'HEADS (Team Blue picks)' : 'TAILS (Team Red picks)';
+    const winner = isHeads ? 'HEADS (Team Blue chooses side/ball)' : 'TAILS (Team Red chooses side/ball)';
     resultText.textContent = `Result: ${winner}`;
     playSound('success');
   }, 1500);
